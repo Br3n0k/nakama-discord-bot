@@ -1,0 +1,58 @@
+{
+  "name": "nakama-capture-app",
+  "version": "0.1.0",
+  "description": "App de Captura de Áudio Nakama para Electron",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --inspect",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "lint": "eslint ."
+  },
+  "keywords": [
+    "nakama",
+    "electron",
+    "audio",
+    "capture"
+  ],
+  "author": "Nakama Team (AI Generated)",
+  "license": "ISC",
+  "dependencies": {
+    "electron-store": "^8.1.0",   Playhouse
+    "ws": "^8.13.0"              
+    // "naudiodon": "^2.3.6"        // Para captura de áudio (node-portaudio bindings)
+    // "ffmpeg-static": "^5.1.0"  // Se for usar ffmpeg para captura/conversão
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",        // Versão mais recente do Electron
+    "electron-builder": "^24.6.0", // Para empacotar e distribuir o app
+    "eslint": "^8.50.0"
+  },
+  "build": {
+    "appId": "com.nakama.captureapp",
+    "productName": "NakamaCapture",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/",
+      "assets/",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.utilities",
+      "icon": "assets/icon.icns"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.ico"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "assets" 
+    }
+  }
+}

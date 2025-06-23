@@ -1,0 +1,89 @@
+---
+// src/layouts/Layout.astro
+import '@fontsource/inter/variable.css'; // Exemplo de importação de fonte
+
+export interface Props {
+	title: string;
+  description?: string; // Opcional
+}
+
+const { title, description = "Nakama - Transmita seu áudio para o Discord com facilidade." } = Astro.props;
+
+// Detecta se o sistema prefere dark mode para aplicar a classe `dark` inicialmente.
+// Pode ser controlado por um seletor de tema no futuro.
+const prefersDarkMode = true; // Forçar dark mode por padrão como pedido.
+// Em uma implementação mais avançada:
+// const prefersDarkMode = Astro.cookies.get('theme')?.value === 'dark' || 
+// (!Astro.cookies.has('theme') && someSystemPreferenceCheck());
+---
+
+<!doctype html>
+<html lang="pt-BR" class={prefersDarkMode ? 'dark' : ''}>
+<head>
+	<meta charset="UTF-8" />
+	<meta name="description" content={description} />
+	<meta name="viewport" content="width=device-width" />
+	<link rel="icon" type="image/svg+xml" href="/favicon.svg" /> {/* Criar um favicon.svg */}
+	<meta name="generator" content={Astro.generator} />
+	<title>{title}</title>
+
+  {/* Estilos Globais e Tailwind */}
+  <style is:global>
+    /* Estilos para fontes importadas via @fontsource ou localmente */
+    /* Exemplo com Inter (já importado acima) */
+    body {
+      font-family: 'InterVariable', sans-serif;
+      @apply bg-neutral-900 text-gray-100; /* Base dark mode */
+    }
+    /* Estilos para scrollbar (opcional, para tema neon/pixel) */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      @apply bg-neutral-800;
+    }
+    ::-webkit-scrollbar-thumb {
+      @apply bg-purple-600 rounded;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      @apply bg-purple-500;
+    }
+
+    /* Outros estilos globais que não se encaixam bem no Tailwind */
+    .container {
+      /* @apply max-w-7xl; /* Definir um max-width padrão para containers */
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+  {/* 
+    A estrutura do layout pode variar. 
+    Ex: Se houver um Header/Navbar e Footer fixos para todas as páginas.
+    <Navbar client:load /> // Se o Navbar for um componente React/Astro interativo
+  */}
+	<slot /> {/* Conteúdo da página será injetado aqui */}
+  {/* 
+    <Footer client:load /> // Se o Footer for um componente React/Astro interativo
+  */}
+</body>
+</html>
+
+astro.config.mjs (Necessário para Tailwind e React)
+import { defineConfig } from 'astro/config';
+import tailwind from "@astrojs/tailwind";
+import react from "@astrojs/react";
+
+// https://astro.build/config
+export default defineConfig({
+  integrations: [
+    tailwind({
+      // Desabilitar estilos base do Tailwind se você quiser controle total
+      // applyBaseStyles: false,
+    }), 
+    react()
+  ],
+  site: 'https://nakama.app', // Substituir pela URL de produção
+  output: 'hybrid', // Ou 'server' para SSR completo, 'static' para SSG
+  // adapter: node(), // Se for fazer deploy em ambiente Node.js (ex: para SSR)
+});

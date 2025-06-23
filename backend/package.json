@@ -1,0 +1,41 @@
+{
+  "name": "nakama-backend",
+  "version": "1.0.0",
+  "description": "Backend API para o projeto Nakama",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "lint": "eslint .",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "nakama",
+    "discord",
+    "audio",
+    "streaming",
+    "fastify"
+  ],
+  "author": "Nakama Team (AI Generated)",
+  "license": "ISC",
+  "dependencies": {
+    "@fastify/cors": "^9.0.0",
+    "@fastify/cookie": "^9.0.0",
+    "@fastify/jwt": "^8.0.0",
+    "@fastify/websocket": "^10.0.0",
+    "fastify": "^4.20.0",
+    "pino-pretty": "^11.0.0"
+    // "pg": "^8.x.x", // Se usar PostgreSQL
+    // "sqlite3": "^5.x.x", // Se usar SQLite
+    // "redis": "^4.x.x" // Se usar Redis
+    // "dotenv": "^16.x.x" // Para carregar .env files
+  },
+  "devDependencies": {
+    "eslint": "^8.50.0"
+    // Adicionar outras dependências de desenvolvimento (nodemon, testing libraries, etc.)
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

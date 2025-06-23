@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- CSP para segurança no Electron -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src ws://localhost:3000 http://localhost:3000;">
+    <title>Nakama - App de Captura</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <img src="../assets/logo_nakama_capture.png" alt="Nakama Logo" id="logo" style="display: none;"> <!-- Adicionar logo -->
+            <h1>Nakama Audio Capture</h1>
+        </header>
+
+        <main>
+            <section id="settings-section">
+                <h2>Configurações</h2>
+                <div class="form-group">
+                    <label for="session-id">ID da Sessão Nakama:</label>
+                    <input type="text" id="session-id" name="session-id" placeholder="Cole seu ID de Sessão do Dashboard">
+                </div>
+                <div class="form-group">
+                    <label for="jwt-token">Token JWT (Nakama):</label>
+                    <input type="password" id="jwt-token" name="jwt-token" placeholder="Seu token JWT (obtido via login no dashboard)">
+                    <small>Este token é usado para autenticar com o backend Nakama. Mantenha-o seguro.</small>
+                </div>
+                <div class="form-group">
+                    <label for="audio-device-select">Dispositivo de Entrada de Áudio:</label>
+                    <select id="audio-device-select" name="audio-device-select">
+                        <option value="">Carregando dispositivos...</option>
+                    </select>
+                </div>
+                <button id="save-settings-btn" class="button">Salvar Configurações</button>
+            </section>
+
+            <section id="status-section">
+                <h2>Status da Transmissão</h2>
+                <div id="status-indicator" class="status-disconnected">
+                    <span id="status-dot"></span>
+                    <span id="status-text">Desconectado</span>
+                </div>
+                <p id="session-info"></p>
+                <div class="controls">
+                    <button id="start-stream-btn" class="button button-primary" disabled>Iniciar Transmissão</button>
+                    <button id="stop-stream-btn" class="button button-danger" disabled>Parar Transmissão</button>
+                </div>
+            </section>
+            
+            <section id="notifications-section">
+                <h3>Mensagens:</h3>
+                <div id="messages-log" class="messages-log">
+                    <p>Bem-vindo ao Nakama Capture App!</p>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>Nakama Project - v0.1.0 (Alpha)</p>
+        </footer>
+    </div>
+
+    <script src="renderer.js"></script>
+</body>
+</html>

@@ -1,0 +1,80 @@
+---
+// Dashboard do usuário autenticado
+import Layout from '../layouts/Layout.astro';
+import SessionDisplay from '../components/SessionDisplay.tsx';
+import AudioDeviceSelector from '../components/AudioDeviceSelector.tsx';
+import StreamingStatus from '../components/StreamingStatus.tsx';
+import Navbar from '../components/Navbar.tsx';
+// import Sidebar from '../components/Sidebar.tsx'; // Se for usar sidebar
+
+// Lógica para verificar autenticação (exemplo, pode ser mais robusto)
+// const cookies = Astro.cookies;
+// const authToken = cookies.get('nakama_token')?.value; // Supondo que o token JWT é armazenado em um cookie
+
+// if (!authToken) {
+//   return Astro.redirect('/login?reason=unauthenticated');
+// }
+
+// Mock de dados da sessão para exibição
+const mockSession = {
+  sessionId: "mock-session-id-12345",
+  user: {
+    username: "Usuário Nakama",
+    avatarUrl: "https://cdn.discordapp.com/embed/avatars/0.png" // Placeholder avatar
+  },
+  isActive: true,
+  expiresAt: new Date(Date.now() + 3600 * 1000).toISOString() // Expira em 1 hora
+};
+
+// Em uma aplicação real, você buscaria esses dados de uma API endpoint
+// Ex: const sessionData = await fetch('/api/user/session').then(res => res.json());
+---
+<Layout title="Nakama - Dashboard">
+  <Navbar user={mockSession.user} client:load />
+  <div class="flex">
+    {/* <Sidebar client:load /> */}
+    <main class="flex-grow container mx-auto px-4 py-8">
+      <h1 class="text-4xl font-bold mb-6 text-purple-400">Seu Dashboard Nakama</h1>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
+          <h2 class="text-2xl font-semibold mb-4 text-teal-400">Sua Sessão Atual</h2>
+          <SessionDisplay session={mockSession} client:visible />
+          <p class="mt-4 text-sm text-gray-400">
+            Use este ID de Sessão no comando `/music` do bot no Discord.
+          </p>
+        </div>
+
+        <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
+          <h2 class="text-2xl font-semibold mb-4 text-teal-400">Configuração de Áudio</h2>
+          <AudioDeviceSelector client:visible />
+        </div>
+
+        <div class="bg-gray-800 p-6 rounded-lg shadow-lg md:col-span-2">
+          <h2 class="text-2xl font-semibold mb-4 text-teal-400">Status da Transmissão</h2>
+          <StreamingStatus client:visible />
+          <p class="mt-4 text-sm text-gray-400">
+            Acompanhe o status da sua transmissão de áudio para o bot.
+          </p>
+        </div>
+      </div>
+
+      <div class="mt-10 text-center">
+        <h2 class="text-2xl font-semibold mb-4 text-purple-400">Como Usar:</h2>
+        <ol class="list-decimal list-inside text-left max-w-md mx-auto text-gray-300 space-y-2">
+          <li>Verifique se o App de Captura Nakama está em execução no seu PC e conectado com esta sessão.</li>
+          <li>No seu servidor Discord, entre em um canal de voz.</li>
+          <li>Digite o comando <code class="bg-gray-700 px-1 rounded">/music {mockSession.sessionId}</code>.</li>
+          <li>O bot Nakama deverá entrar no seu canal e começar a tocar o áudio do seu PC.</li>
+        </ol>
+      </div>
+    </main>
+  </div>
+</Layout>
+
+<style>
+  /* Estilos para o dashboard */
+  main {
+    min-height: calc(100vh - 4rem); /* Subtrai altura do Navbar, ajuste conforme necessário */
+  }
+</style>

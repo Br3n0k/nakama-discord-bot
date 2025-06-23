@@ -1,0 +1,64 @@
+---
+// Rota de callback do Discord OAuth2
+// Esta página receberá o código de autorização do Discord.
+// Ela deve enviar este código para o backend para troca por um token de acesso
+// e criação/validação da sessão do usuário.
+import Layout from '../../layouts/Layout.astro';
+
+const code = Astro.url.searchParams.get('code');
+const error = Astro.url.searchParams.get('error');
+
+let message = "Processando autenticação...";
+let redirectUrl = "/dashboard";
+let success = false;
+
+if (error) {
+  message = `Erro na autenticação: ${error}. Você será redirecionado para a página inicial.`;
+  redirectUrl = "/";
+} else if (code) {
+  // EM UMA APLICAÇÃO REAL:
+  // 1. Enviar o 'code' para o backend: POST /api/auth/callback { code: code }
+  // 2. Backend troca o código por tokens com o Discord.
+  // 3. Backend cria uma sessão para o usuário, armazena o token (e.g., em um httpOnly cookie).
+  // 4. Backend responde ao frontend (esta página) com sucesso ou falha.
+
+  // Simulando sucesso para este placeholder:
+  message = "Autenticação bem-sucedida! Você será redirecionado para o dashboard.";
+  success = true;
+  // Aqui, o backend normalmente definiria um cookie de sessão.
+  // Ex: Astro.cookies.set('nakama_token', 'mock_jwt_token_from_backend', { httpOnly: true, path: '/' });
+} else {
+  message = "Nenhum código de autorização recebido. Redirecionando para a página inicial.";
+  redirectUrl = "/";
+}
+---
+
+<Layout title="Nakama - Callback de Autenticação">
+  <main class="container mx-auto px-4 py-16 text-center">
+    <h1 class="text-3xl font-bold mb-6 text-purple-400">Autenticação em Progresso</h1>
+    <p class="text-gray-300 mb-4">{message}</p>
+    <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500 mx-auto"></div>
+
+    {success && (
+      <p class="mt-4 text-green-400">
+        Você será redirecionado em instantes...
+      </p>
+    )}
+    {!success && error && (
+      <p class="mt-4 text-red-400">
+        Houve um problema. Tente novamente mais tarde.
+      </p>
+    )}
+  </main>
+</Layout>
+
+<script define:vars={{ redirectUrl }}>
+  // Redireciona após um pequeno delay para o usuário ler a mensagem.
+  setTimeout(() => {
+    window.location.href = redirectUrl;
+  }, 3000);
+</script>
+
+<style>
+  /* Estilos para a página de callback */
+</style>

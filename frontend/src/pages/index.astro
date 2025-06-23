@@ -1,0 +1,24 @@
+---
+// Landing page para Nakama
+// Apresentação do projeto e link de login
+import Layout from '../layouts/Layout.astro';
+import LoginButton from '../components/LoginButton.tsx';
+---
+<Layout title="Nakama - Sua Voz no Discord">
+  <main class="container mx-auto px-4 py-16 text-center">
+    <h1 class="text-5xl font-bold mb-8 text-purple-400">Bem-vindo ao Nakama</h1>
+    <p class="text-xl mb-12 text-gray-300">
+      Capture o áudio do seu PC e transmita diretamente para seus bots no Discord com facilidade.
+    </p>
+    <div class="flex justify-center">
+      <LoginButton client:load />
+    </div>
+    <p class="mt-8 text-sm text-gray-500">
+      Conecte-se para começar a usar o Nakama e gerenciar suas sessões de áudio.
+    </p>
+  </main>
+</Layout>
+
+<style>
+  /* Estilos específicos podem ser adicionados aqui ou via Tailwind */
+</style>
