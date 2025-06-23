@@ -64,9 +64,10 @@ const SessionDisplay: React.FC<SessionDisplayProps> = ({ session }) => {
         </div>
       )}
       <div className="mb-2">
-        <label className="block text-sm font-medium text-gray-400">ID da Sessão:</label>
+        <label htmlFor="session-id" className="block text-sm font-medium text-gray-400">ID da Sessão:</label>
         <div className="flex items-center mt-1">
           <input
+            id="session-id"
             type="text"
             value={sessionId}
             readOnly

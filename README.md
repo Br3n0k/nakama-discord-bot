@@ -64,7 +64,7 @@ graph LR
 
 ### **1. Configuração Inicial**
 ```bash
-git clone <repository-url>
+git clone git@github.com:Br3n0k/nakama-discord-bot.git
 cd nakama-discord-bot
 ```
 
