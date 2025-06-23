@@ -8,7 +8,9 @@
     "dev": "electron . --inspect",
     "pack": "electron-builder --dir",
     "dist": "electron-builder",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "install-audio": "npm install naudiodon@latest",
+    "setup": "npm install && npm run install-audio"
   },
   "keywords": [
     "nakama",
@@ -19,14 +21,13 @@
   "author": "Nakama Team (AI Generated)",
   "license": "ISC",
   "dependencies": {
-    "electron-store": "^8.1.0",   Playhouse
-    "ws": "^8.13.0"              
-    // "naudiodon": "^2.3.6"        // Para captura de áudio (node-portaudio bindings)
-    // "ffmpeg-static": "^5.1.0"  // Se for usar ffmpeg para captura/conversão
+    "electron-store": "^8.1.0",
+    "ws": "^8.13.0",
+    "naudiodon": "^2.3.6"
   },
   "devDependencies": {
-    "electron": "^28.0.0",        // Versão mais recente do Electron
-    "electron-builder": "^24.6.0", // Para empacotar e distribuir o app
+    "electron": "^28.0.0",
+    "electron-builder": "^24.6.0",
     "eslint": "^8.50.0"
   },
   "build": {
@@ -52,7 +53,7 @@
     },
     "linux": {
       "target": "AppImage",
-      "icon": "assets" 
+      "icon": "assets"
     }
   }
 }

@@ -6,6 +6,65 @@
 const activeAudioStreams = new Map(); // session_id -> { websocketConnection, buffer, botConnection, etc. }
 
 async function audioRoutes(fastify, options) {
+  // Rota para verificar status do Capture App para uma sessão
+  fastify.post('/audio/status', { onRequest: [fastify.authenticate] }, async (request, reply) => {
+    const { sessionId } = request.body;
+    
+    if (!sessionId) {
+      return reply.code(400).send({ error: 'sessionId é obrigatório' });
+    }
+
+    // Verificar se há uma conexão WebSocket ativa para esta sessão
+    const streamData = activeAudioStreams.get(sessionId);
+    const captureAppConnected = streamData && streamData.websocket && streamData.websocket.readyState === 1; // WebSocket.OPEN
+
+    // Verificar se há um bot conectado para esta sessão
+    const botConnected = streamData && streamData.botConnected === true;
+
+    return reply.send({
+      sessionId,
+      captureAppConnected,
+      botConnected,
+      lastActivity: streamData?.receivedAt || null,
+      status: captureAppConnected && botConnected ? 'streaming' : 
+              captureAppConnected ? 'capture_ready' :
+              botConnected ? 'bot_ready' : 'disconnected'
+    });
+  });
+
+  // Rota para configurar dispositivo de áudio no Capture App
+  fastify.post('/audio/device-config', { onRequest: [fastify.authenticate] }, async (request, reply) => {
+    const { sessionId, selectedDeviceId } = request.body;
+    
+    if (!sessionId || !selectedDeviceId) {
+      return reply.code(400).send({ error: 'sessionId e selectedDeviceId são obrigatórios' });
+    }
+
+    const streamData = activeAudioStreams.get(sessionId);
+    if (!streamData || !streamData.websocket || streamData.websocket.readyState !== 1) {
+      return reply.code(404).send({ error: 'Capture App não conectado para esta sessão' });
+    }
+
+    // Enviar comando para o Capture App alterar o dispositivo
+    try {
+      streamData.websocket.send(JSON.stringify({
+        type: 'device_config',
+        selectedDeviceId,
+        timestamp: Date.now()
+      }));
+
+      fastify.log.info(`Configuração de dispositivo enviada para sessão ${sessionId}: ${selectedDeviceId}`);
+      
+      return reply.send({
+        message: 'Configuração de dispositivo enviada com sucesso',
+        selectedDeviceId
+      });
+    } catch (error) {
+      fastify.log.error(`Erro ao enviar configuração de dispositivo: ${error.message}`);
+      return reply.code(500).send({ error: 'Erro ao comunicar com Capture App' });
+    }
+  });
+
   // Rota WebSocket para receber chunks de áudio do Electron/App de Captura
   // POST /audio/stream (na verdade, será um upgrade para WebSocket, não um POST tradicional)
   // O caminho aqui é como o fastify-websocket espera.
@@ -26,126 +85,187 @@ async function audioRoutes(fastify, options) {
       return;
     }
     
-    // Verificar se a sessão é válida (ex: consultando o mockSessions ou DB)
-    // const session = fastify.mockSessions.get(sessionId); // Supondo que mockSessions está acessível
-    // if (!session || !session.is_active) {
-    //   fastify.log.warn(`Conexão WebSocket recusada para sessão inválida ou inativa: ${sessionId}`);
-    //   connection.socket.send(JSON.stringify({ error: 'Sessão inválida ou inativa' }));
-    //   connection.socket.close(1008, "Sessão inválida ou inativa");
-    //   return;
-    // }
+    // Verificar se a sessão é válida
+    const session = fastify.mockSessions?.get(sessionId);
+    if (!session || !session.is_active) {
+      fastify.log.warn(`Conexão WebSocket recusada para sessão inválida: ${sessionId}`);
+      connection.socket.send(JSON.stringify({ error: 'Sessão inválida ou inativa' }));
+      connection.socket.close(1008, "Sessão inválida ou inativa");
+      return;
+    }
 
     fastify.log.info(`Cliente de áudio conectado para sessão: ${sessionId}`);
-    activeAudioStreams.set(sessionId, { 
+    
+    // Armazenar dados da conexão
+    const streamData = {
       websocket: connection.socket, 
       receivedAt: new Date(),
-      // Outros metadados podem ser armazenados aqui, como o bot que deve receber este áudio
-    });
+      sessionId,
+      botConnected: false,
+      audioBuffer: [], // Buffer para armazenar chunks de áudio
+      selectedDeviceId: null
+    };
+    
+    activeAudioStreams.set(sessionId, streamData);
 
     connection.socket.on('message', message => {
-      // Mensagem pode ser um Buffer de áudio (PCM, Opus) ou JSON com metadados.
-      // O formato exato precisa ser definido entre o App de Captura e o Backend.
+      // Atualizar timestamp da última atividade
+      streamData.receivedAt = new Date();
       
-      // Exemplo: se for Buffer de áudio
       if (Buffer.isBuffer(message)) {
-        // fastify.log.info(`Recebido chunk de áudio (${message.length} bytes) para sessão ${sessionId}`);
-        // TODO: Processar o chunk de áudio:
-        // 1. Adicionar a um buffer para esta sessão.
-        // 2. Se houver um bot do Discord conectado e esperando por este áudio,
-        //    encaminhar o áudio para o bot (ex: via um Event Emitter, Redis Pub/Sub, ou diretamente se no mesmo processo).
+        // Chunk de áudio recebido
+        fastify.log.debug(`Chunk de áudio recebido (${message.length} bytes) para sessão ${sessionId}`);
         
-        const streamData = activeAudioStreams.get(sessionId);
-        if (streamData && streamData.botAudioStream) {
-          // Exemplo: se o botDiscord fornecer um WritableStream para o áudio
-           streamData.botAudioStream.write(message);
-        } else {
-          // Armazenar em buffer se o bot não estiver pronto, ou descartar, ou logar.
-          // console.log(`Áudio recebido para ${sessionId}, mas nenhum bot está ouvindo.`);
+        // Armazenar no buffer
+        streamData.audioBuffer.push({
+          data: message,
+          timestamp: Date.now()
+        });
+        
+        // Manter apenas os últimos 100 chunks (para evitar uso excessivo de memória)
+        if (streamData.audioBuffer.length > 100) {
+          streamData.audioBuffer.shift();
+        }
+        
+        // Se há um bot conectado, encaminhar o áudio
+        if (streamData.botConnected && streamData.onBotDataCallback) {
+          streamData.onBotDataCallback(message);
         }
 
       } else {
         try {
           const parsedMessage = JSON.parse(message.toString());
-          fastify.log.info(`Recebida mensagem JSON de ${sessionId}:`, parsedMessage);
-          // Lidar com comandos ou metadados enviados pelo App de Captura
-          // Ex: { type: 'start_stream', format: 'opus', sampleRate: 48000 }
-          // Ex: { type: 'ping' }
-          if (parsedMessage.type === 'ping') {
-            connection.socket.send(JSON.stringify({ type: 'pong', timestamp: Date.now() }));
+          fastify.log.info(`Mensagem do Capture App (${sessionId}):`, parsedMessage);
+          
+          switch (parsedMessage.type) {
+            case 'ping':
+              connection.socket.send(JSON.stringify({ 
+                type: 'pong', 
+                timestamp: Date.now() 
+              }));
+              break;
+              
+            case 'device_selected':
+              streamData.selectedDeviceId = parsedMessage.deviceId;
+              fastify.log.info(`Dispositivo selecionado para ${sessionId}: ${parsedMessage.deviceId}`);
+              break;
+              
+            case 'audio_start':
+              fastify.log.info(`Início de transmissão de áudio para ${sessionId}`);
+              break;
+              
+            case 'audio_stop':
+              fastify.log.info(`Fim de transmissão de áudio para ${sessionId}`);
+              break;
           }
 
         } catch (e) {
-          fastify.log.warn(`Recebida mensagem não-buffer e não-JSON de ${sessionId}: ${message.toString()}`);
+          fastify.log.warn(`Mensagem inválida de ${sessionId}: ${message.toString()}`);
         }
       }
     });
 
     connection.socket.on('close', (code, reason) => {
-      fastify.log.info(`Cliente de áudio desconectado para sessão ${sessionId}. Code: ${code}, Reason: ${reason?.toString()}`);
-      const streamData = activeAudioStreams.get(sessionId);
-      if (streamData && streamData.botAudioStream) {
-        // Sinalizar ao bot que a stream de áudio terminou
-        streamData.botAudioStream.end();
+      fastify.log.info(`Cliente de áudio desconectado (${sessionId}). Code: ${code}, Reason: ${reason?.toString()}`);
+      
+      // Notificar bot se estava conectado
+      if (streamData.botConnected && streamData.onBotEndCallback) {
+        streamData.onBotEndCallback();
       }
+      
       activeAudioStreams.delete(sessionId);
     });
 
     connection.socket.on('error', error => {
-      fastify.log.error(`Erro no WebSocket de áudio para sessão ${sessionId}:`, error);
-      // A conexão 'close' também será chamada.
+      fastify.log.error(`Erro no WebSocket de áudio (${sessionId}):`, error);
     });
 
-    // Enviar uma mensagem de boas-vindas ou confirmação
-    connection.socket.send(JSON.stringify({ status: 'connected', message: `Conectado ao servidor de áudio para sessão ${sessionId}` }));
+    // Enviar mensagem de boas-vindas
+    connection.socket.send(JSON.stringify({ 
+      type: 'connected',
+      message: `Conectado ao servidor Nakama para sessão ${sessionId}`,
+      sessionId,
+      timestamp: Date.now()
+    }));
   });
 
-  // Rota para o bot do Discord se inscrever para receber áudio de uma sessão
-  // (Este é um exemplo de como o bot poderia obter o áudio, pode ser um EventEmitter interno)
-  // Esta não é uma rota HTTP pública, mas uma função que o módulo do bot chamaria.
+  // Função para o bot se inscrever para receber áudio de uma sessão
   fastify.decorate('getAudioStreamForSession', (sessionIdToListen) => {
-    // Retorna um ReadableStream ou um mecanismo para o bot receber os chunks de áudio.
-    // Isso precisa ser implementado com mais cuidado.
-    // Por exemplo, o bot poderia registrar um callback ou receber um stream.
     fastify.log.info(`Bot solicitando stream de áudio para sessão: ${sessionIdToListen}`);
     
     const streamData = activeAudioStreams.get(sessionIdToListen);
-    if (streamData) {
-        // Se já existe uma conexão WebSocket do App de Captura
-        // Precisamos de um mecanismo para encaminhar os dados.
-        // Exemplo simplista:
-        // const passthrough = new PassThrough();
-        // streamData.botAudioStream = passthrough; // O áudio recebido no WS será escrito aqui
-        // return passthrough; // O bot lê deste stream
-
-        // Placeholder:
-        return {
-            onData: (callback) => {
-                // Armazena o callback para ser chamado quando dados chegarem
-                if (streamData) streamData.onBotDataCallback = callback;
-            },
-            onEnd: (callback) => {
-                if (streamData) streamData.onBotEndCallback = callback;
-            },
-            stop: () => {
-                if (streamData) {
-                    delete streamData.onBotDataCallback;
-                    delete streamData.onBotEndCallback;
-                    // streamData.botAudioStream?.destroy();
-                    // delete streamData.botAudioStream;
-                }
-                fastify.log.info(`Bot parou de ouvir a sessão ${sessionIdToListen}`);
-            }
-        };
+    if (!streamData) {
+      return null;
     }
-    return null; // Ou lançar erro se a sessão não estiver ativa
+
+    // Marcar que o bot está conectado
+    streamData.botConnected = true;
+    
+    // Notificar o Capture App que o bot se conectou
+    if (streamData.websocket && streamData.websocket.readyState === 1) {
+      streamData.websocket.send(JSON.stringify({
+        type: 'bot_connected',
+        message: 'Bot Discord conectado e pronto para receber áudio',
+        timestamp: Date.now()
+      }));
+    }
+
+    return {
+      onData: (callback) => {
+        streamData.onBotDataCallback = callback;
+        
+        // Enviar chunks do buffer se houver
+        if (streamData.audioBuffer.length > 0) {
+          streamData.audioBuffer.forEach(chunk => {
+            callback(chunk.data);
+          });
+        }
+      },
+      onEnd: (callback) => {
+        streamData.onBotEndCallback = callback;
+      },
+      stop: () => {
+        streamData.botConnected = false;
+        delete streamData.onBotDataCallback;
+        delete streamData.onBotEndCallback;
+        
+        // Notificar o Capture App que o bot desconectou
+        if (streamData.websocket && streamData.websocket.readyState === 1) {
+          streamData.websocket.send(JSON.stringify({
+            type: 'bot_disconnected',
+            message: 'Bot Discord desconectado',
+            timestamp: Date.now()
+          }));
+        }
+        
+        fastify.log.info(`Bot parou de ouvir a sessão ${sessionIdToListen}`);
+      }
+    };
   });
 
-  // Hook para adicionar activeAudioStreams ao fastify instance para acesso em outros lugares (ex: bot route)
-  // fastify.decorate('activeAudioStreams', activeAudioStreams); // Já está no escopo do plugin
-
+  // Rota para limpar sessões inativas (limpeza automática)
+  fastify.get('/audio/cleanup', async (request, reply) => {
+    const now = Date.now();
+    const timeout = 10 * 60 * 1000; // 10 minutos
+    
+    let cleanedCount = 0;
+    for (const [sessionId, streamData] of activeAudioStreams.entries()) {
+      if (now - streamData.receivedAt.getTime() > timeout) {
+        if (streamData.websocket && streamData.websocket.readyState === 1) {
+          streamData.websocket.close(1000, 'Timeout de inatividade');
+        }
+        activeAudioStreams.delete(sessionId);
+        cleanedCount++;
+      }
+    }
+    
+    fastify.log.info(`Limpeza de sessões: ${cleanedCount} sessões inativas removidas`);
+    return reply.send({ cleaned: cleanedCount, active: activeAudioStreams.size });
+  });
 }
 
-// Expor activeAudioStreams para o bot.js poder interagir (temporário)
+// Expor activeAudioStreams para outros módulos
 audioRoutes.activeAudioStreams = activeAudioStreams;
 
 export default audioRoutes;
+export { activeAudioStreams };

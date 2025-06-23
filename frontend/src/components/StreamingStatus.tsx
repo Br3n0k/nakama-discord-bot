@@ -4,149 +4,267 @@ import React, { useState, useEffect } from 'react';
 // ou buscar status periodicamente de um endpoint da API.
 // Para o placeholder, vamos simular alguns estados.
 
-type Status = 'disconnected' | 'connecting' | 'connected' | 'streaming' | 'error' | 'paused';
+type Status = 'disconnected' | 'capture_ready' | 'bot_ready' | 'streaming' | 'error';
 
 interface StreamingStatusProps {
-  sessionId?: string; // Opcional, para buscar status específico da sessão
+  sessionId: string;
+}
+
+interface StreamingData {
+  status: Status;
+  captureAppConnected: boolean;
+  botConnected: boolean;
+  lastActivity: string | null;
+  bitrate: number;
+  latency: number;
+  errorMessage?: string;
 }
 
 const StreamingStatus: React.FC<StreamingStatusProps> = ({ sessionId }) => {
-  const [status, setStatus] = useState<Status>('disconnected');
-  const [bitrate, setBitrate] = useState<number>(0); // kbps
-  const [latency, setLatency] = useState<number>(0); // ms
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [streamingData, setStreamingData] = useState<StreamingData>({
+    status: 'disconnected',
+    captureAppConnected: false,
+    botConnected: false,
+    lastActivity: null,
+    bitrate: 0,
+    latency: 0
+  });
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Simulação de mudança de status
-  useEffect(() => {
-    // Em uma aplicação real, aqui você iniciaria a conexão WebSocket com o backend
-    // ou faria polling para obter o status.
-    // Ex: const ws = new WebSocket(`wss://your-backend.com/api/audio/status?sessionId=${sessionId}`);
-    // ws.onmessage = (event) => { /* parse event.data e atualize o estado */ };
+  // Buscar status da transmissão
+  const fetchStreamingStatus = async () => {
+    if (!sessionId) return;
     
-    console.log(`StreamingStatus: Observando sessão ${sessionId || 'geral'}`);
+    try {
+      const response = await fetch('/api/audio/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId }),
+        credentials: 'include'
+      });
 
-    const mockStatusUpdates: Status[] = ['connecting', 'connected', 'streaming'];
-    let currentMockIndex = 0;
-
-    const intervalId = setInterval(() => {
-      if (currentMockIndex < mockStatusUpdates.length) {
-        setStatus(mockStatusUpdates[currentMockIndex]);
-        if (mockStatusUpdates[currentMockIndex] === 'streaming') {
-          setBitrate(Math.floor(Math.random() * (128 - 64 + 1)) + 64); // Random bitrate 64-128kbps
-          setLatency(Math.floor(Math.random() * (150 - 50 + 1)) + 50); // Random latency 50-150ms
-        }
-        currentMockIndex++;
-      } else {
-        // Simula uma desconexão ou erro aleatório após um tempo
-        // if (Math.random() > 0.8) {
-        //   setStatus('error');
-        //   setErrorMessage('Conexão perdida com o servidor de áudio.');
-        //   clearInterval(intervalId);
-        // } else if (Math.random() > 0.6) {
-        //   setStatus('paused');
-        // }
+      if (response.ok) {
+        const data = await response.json();
+        setStreamingData(prev => ({
+          ...prev,
+          status: data.status,
+          captureAppConnected: data.captureAppConnected,
+          botConnected: data.botConnected,
+          lastActivity: data.lastActivity,
+          // Simular métricas (em produção viria do backend)
+          bitrate: data.status === 'streaming' ? Math.floor(Math.random() * 64) + 64 : 0,
+          latency: data.status === 'streaming' ? Math.floor(Math.random() * 100) + 50 : 0
+        }));
       }
-    }, 2000); // Muda status a cada 2 segundos
+    } catch (error) {
+      console.error('Erro ao buscar status:', error);
+      setStreamingData(prev => ({
+        ...prev,
+        status: 'error',
+        errorMessage: 'Erro ao conectar com servidor'
+      }));
+    }
+  };
 
-    return () => clearInterval(intervalId); // Limpa o intervalo ao desmontar
+  // Polling para atualizar status
+  useEffect(() => {
+    fetchStreamingStatus();
+    
+    const interval = setInterval(fetchStreamingStatus, 3000); // A cada 3 segundos
+    return () => clearInterval(interval);
   }, [sessionId]);
 
-  const getStatusColor = () => {
-    switch (status) {
-      case 'connected':
+  const getStatusInfo = () => {
+    switch (streamingData.status) {
       case 'streaming':
-        return 'text-green-400';
-      case 'connecting':
-        return 'text-yellow-400';
-      case 'disconnected':
+        return {
+          text: '🔴 Transmitindo ao Vivo',
+          color: 'text-green-400',
+          bgColor: 'bg-green-900/20',
+          borderColor: 'border-green-600'
+        };
+      case 'capture_ready':
+        return {
+          text: '🟡 Capture App Conectado',
+          color: 'text-yellow-400',
+          bgColor: 'bg-yellow-900/20',
+          borderColor: 'border-yellow-600'
+        };
+      case 'bot_ready':
+        return {
+          text: '🔵 Bot Discord Conectado',
+          color: 'text-blue-400',
+          bgColor: 'bg-blue-900/20',
+          borderColor: 'border-blue-600'
+        };
       case 'error':
-        return 'text-red-400';
-      case 'paused':
-        return 'text-blue-400';
+        return {
+          text: '❌ Erro de Conexão',
+          color: 'text-red-400',
+          bgColor: 'bg-red-900/20',
+          borderColor: 'border-red-600'
+        };
       default:
-        return 'text-gray-400';
+        return {
+          text: '⚪ Desconectado',
+          color: 'text-gray-400',
+          bgColor: 'bg-gray-800/50',
+          borderColor: 'border-gray-600'
+        };
     }
   };
 
-  const getStatusText = () => {
-    switch (status) {
-      case 'connected': return 'Conectado ao Servidor de Áudio';
-      case 'streaming': return 'Transmitindo Áudio';
-      case 'connecting': return 'Conectando...';
-      case 'disconnected': return 'Desconectado';
-      case 'error': return `Erro: ${errorMessage || 'Desconhecido'}`;
-      case 'paused': return 'Transmissão Pausada';
-      default: return 'Status Desconhecido';
-    }
+  const statusInfo = getStatusInfo();
+
+  const formatLastActivity = (lastActivity: string | null) => {
+    if (!lastActivity) return 'Nunca';
+    
+    const date = new Date(lastActivity);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffSec = Math.floor(diffMs / 1000);
+    
+    if (diffSec < 60) return `${diffSec}s atrás`;
+    if (diffSec < 3600) return `${Math.floor(diffSec / 60)}min atrás`;
+    return date.toLocaleTimeString('pt-BR');
   };
 
-  // Ações de controle (placeholder)
-  const handlePauseStream = () => { 
-    setStatus('paused'); 
-    console.log("Pausar stream (simulado)");
-    // Enviar comando para backend/app de captura
-  };
-  const handleResumeStream = () => { 
-    setStatus('streaming');
-    console.log("Retomar stream (simulado)");
-    // Enviar comando para backend/app de captura
-  };
-  const handleStopStream = () => { 
-    setStatus('disconnected'); 
-    setBitrate(0);
-    setLatency(0);
-    console.log("Parar stream (simulado)");
-    // Enviar comando para backend/app de captura
-  };
+  const openCaptureApp = () => {
+    // Instruções para abrir o Capture App
+    const instructions = `
+Para conectar o Capture App:
 
+1. Abra o Nakama Capture App no seu PC
+2. Cole sua Session ID: ${sessionId}
+3. Configure seu token JWT (copie do seu navegador se necessário)
+4. Clique em "Iniciar Transmissão"
+
+O app deve aparecer como "Conectado" em alguns segundos.
+    `;
+    alert(instructions);
+  };
 
   return (
-    <div className="p-4 bg-gray-700 rounded-lg shadow">
-      <div className="flex justify-between items-center mb-3">
-        <h3 className={`text-lg font-semibold ${getStatusColor()}`}>
-          {getStatusText()}
-        </h3>
-        {/* Ícone de status (poderia ser um SVG animado) */}
-        {status === 'streaming' && <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>}
-        {status === 'connecting' && <div className="w-3 h-3 bg-yellow-500 rounded-full animate-ping"></div>}
-        {status === 'error' && <div className="w-3 h-3 bg-red-500 rounded-full"></div>}
+    <div className="space-y-4">
+      {/* Status Principal */}
+      <div className={`p-4 rounded-lg border ${statusInfo.bgColor} ${statusInfo.borderColor}`}>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className={`text-lg font-semibold ${statusInfo.color}`}>
+            {statusInfo.text}
+          </h3>
+          {streamingData.status === 'streaming' && (
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+              <span className="text-red-400 text-sm font-medium">AO VIVO</span>
+            </div>
+          )}
+        </div>
+
+        {streamingData.errorMessage && (
+          <p className="text-red-300 text-sm mb-3">{streamingData.errorMessage}</p>
+        )}
+
+        {/* Grid de Status */}
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div className="flex items-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${
+              streamingData.captureAppConnected ? 'bg-green-400' : 'bg-gray-400'
+            }`}></div>
+            <span className="text-gray-300">
+              Capture App: {streamingData.captureAppConnected ? 'Conectado' : 'Desconectado'}
+            </span>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${
+              streamingData.botConnected ? 'bg-green-400' : 'bg-gray-400'
+            }`}></div>
+            <span className="text-gray-300">
+              Discord Bot: {streamingData.botConnected ? 'Conectado' : 'Desconectado'}
+            </span>
+          </div>
+        </div>
       </div>
 
-      {errorMessage && status === 'error' && (
-        <p className="text-red-300 text-sm mb-2">{errorMessage}</p>
-      )}
-
-      {(status === 'connected' || status === 'streaming' || status === 'paused') && (
-        <div className="grid grid-cols-2 gap-4 text-sm">
-          <div>
-            <span className="text-gray-400">Bitrate:</span>
-            <span className="text-gray-200 ml-1">{bitrate > 0 ? `${bitrate} kbps` : 'N/A'}</span>
-          </div>
-          <div>
-            <span className="text-gray-400">Latência:</span>
-            <span className="text-gray-200 ml-1">{latency > 0 ? `${latency} ms` : 'N/A'}</span>
+      {/* Métricas de Transmissão */}
+      {streamingData.status === 'streaming' && (
+        <div className="bg-gray-800 p-4 rounded-lg">
+          <h4 className="text-purple-400 font-semibold mb-3">📊 Métricas da Transmissão</h4>
+          <div className="grid grid-cols-3 gap-4 text-sm">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-green-400">{streamingData.bitrate}</div>
+              <div className="text-gray-400">kbps</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-blue-400">{streamingData.latency}</div>
+              <div className="text-gray-400">ms latência</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-purple-400">PCM</div>
+              <div className="text-gray-400">formato</div>
+            </div>
           </div>
         </div>
       )}
-      
-      {/* Botões de Controle (Exemplo) */}
-      <div className="mt-4 flex space-x-2">
-        {status === 'streaming' && (
-            <button onClick={handlePauseStream} className="bg-yellow-600 hover:bg-yellow-700 text-white py-1 px-3 rounded text-sm">Pausar</button>
+
+      {/* Informações Detalhadas */}
+      <div className="bg-gray-800/50 p-3 rounded-lg text-xs text-gray-400">
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <strong>Session ID:</strong> {sessionId.substring(0, 8)}...
+          </div>
+          <div>
+            <strong>Última Atividade:</strong> {formatLastActivity(streamingData.lastActivity)}
+          </div>
+          <div>
+            <strong>Qualidade:</strong> 48kHz, 16-bit, Mono
+          </div>
+          <div>
+            <strong>Protocolo:</strong> WebSocket + PCM
+          </div>
+        </div>
+      </div>
+
+      {/* Botões de Ação */}
+      <div className="flex gap-2">
+        {!streamingData.captureAppConnected && (
+          <button
+            onClick={openCaptureApp}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm flex-1"
+          >
+            📱 Conectar Capture App
+          </button>
         )}
-        {status === 'paused' && (
-            <button onClick={handleResumeStream} className="bg-green-600 hover:bg-green-700 text-white py-1 px-3 rounded text-sm">Retomar</button>
+        
+        {!streamingData.botConnected && streamingData.captureAppConnected && (
+          <div className="bg-yellow-900/20 border border-yellow-600 p-3 rounded text-sm text-yellow-300 flex-1">
+            <strong>Próximo passo:</strong> Use o comando <code className="bg-gray-700 px-1 rounded">/music {sessionId}</code> no Discord
+          </div>
         )}
-        {(status === 'streaming' || status === 'paused' || status === 'connected') && (
-            <button onClick={handleStopStream} className="bg-red-600 hover:bg-red-700 text-white py-1 px-3 rounded text-sm">Parar</button>
-        )}
-         {status === 'disconnected' && (
-            <button onClick={() => setStatus('connecting')} className="bg-blue-600 hover:bg-blue-700 text-white py-1 px-3 rounded text-sm">Conectar App</button>
+
+        {streamingData.status === 'streaming' && (
+          <button
+            onClick={() => window.location.reload()}
+            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded text-sm"
+          >
+            🔄 Atualizar
+          </button>
         )}
       </div>
-       <p className="text-xs text-gray-500 mt-3">
-        Este painel reflete o status da conexão entre o App de Captura Nakama e o servidor.
-      </p>
+
+      {/* Guia Rápido */}
+      {streamingData.status === 'disconnected' && (
+        <div className="bg-gray-700 p-4 rounded-lg">
+          <h4 className="text-gray-300 font-semibold mb-2">🚀 Para começar:</h4>
+          <ol className="text-sm text-gray-400 space-y-1 list-decimal list-inside">
+            <li>Abra o Nakama Capture App no seu PC</li>
+            <li>Configure com sua Session ID: <code className="bg-gray-600 px-1 rounded text-xs">{sessionId}</code></li>
+            <li>No Discord, entre em um canal de voz</li>
+            <li>Digite: <code className="bg-gray-600 px-1 rounded text-xs">/music {sessionId}</code></li>
+            <li>Selecione seu dispositivo de áudio e comece a transmitir!</li>
+          </ol>
+        </div>
+      )}
     </div>
   );
 };

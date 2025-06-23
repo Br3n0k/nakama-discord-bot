@@ -1,43 +1,78 @@
 // capture-app/main.js
 const { app, BrowserWindow, ipcMain, Menu, Tray, nativeImage } = require('electron');
 const path = require('node:path');
-// const WebSocket = require('ws'); // Para conectar ao backend Nakama
-// const portAudio = require('naudiodon'); // Exemplo se usar node-portaudio / naudiodon
-// const Store = require('electron-store'); // Para persistir configurações
+const WebSocket = require('ws');
+// const portAudio = require('naudiodon'); // Descomentar quando naudiodon estiver instalado
+const Store = require('electron-store');
 
-// Variáveis de ambiente ou config
+// Tentar carregar naudiodon, fallback para simulação se não disponível
+let portAudio;
+try {
+  portAudio = require('naudiodon');
+  console.log('naudiodon carregado com sucesso');
+} catch (error) {
+  console.warn('naudiodon não disponível, usando simulação:', error.message);
+  portAudio = null;
+}
+
+// Configuração
 const NAKAMA_BACKEND_WS_URL = process.env.NAKAMA_BACKEND_WS_URL || 'ws://localhost:3000/api/audio/stream';
-// const store = new Store(); // user_jwt, session_id, selected_audio_device
+const store = new Store();
 
 let mainWindow;
 let tray = null;
 let audioWebSocket = null;
-let audioInput = null; // Instância do naudiodon.AudioInput ou similar
+let audioInput = null;
 let isStreaming = false;
+let selectedDeviceId = -1; // -1 = dispositivo padrão
+let audioDevices = [];
+
+// Configurações de áudio
+const AUDIO_CONFIG = {
+  channelCount: 1,        // Mono
+  sampleFormat: 16,       // 16-bit PCM (naudiodon.SampleFormat16Bit)
+  sampleRate: 48000,      // 48kHz (padrão Discord)
+  framesPerBuffer: 1920   // 40ms de áudio (48000 * 0.04)
+};
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 800,
-    height: 600,
+    width: 900,
+    height: 700,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
-      nodeIntegration: false, // Importante para segurança
+      nodeIntegration: false,
     },
-    icon: path.join(__dirname, 'assets', 'icon.png') // Adicionar um ícone
+    icon: path.join(__dirname, 'assets', 'icon.png'),
+    title: 'Nakama Audio Capture',
+    show: false // Não mostrar até estar pronto
   });
 
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 
-  // mainWindow.webContents.openDevTools(); // Abrir DevTools para debug
+  // Mostrar quando pronto
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show();
+    loadAudioDevices();
+  });
 
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
+
+  // Minimizar para tray em vez de fechar
+  mainWindow.on('close', (event) => {
+    if (!app.isQuitting) {
+      event.preventDefault();
+      mainWindow.hide();
+    }
+  });
 }
 
-// --- Tray Icon ---
 function createTray() {
+  // Criar ícone placeholder
+  const icon = nativeImage.createFromDataURL(
   // const iconPath = path.join(__dirname, 'assets', 'icon_tray.png'); // Usar um ícone específico para tray
   // const icon = nativeImage.createFromPath(iconPath);
   // tray = new Tray(icon.resize({ width: 16, height: 16 })); // Redimensionar se necessário

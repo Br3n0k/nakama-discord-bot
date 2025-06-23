@@ -15,58 +15,105 @@ import Navbar from '../components/Navbar.tsx';
 //   return Astro.redirect('/login?reason=unauthenticated');
 // }
 
-// Mock de dados da sessão para exibição
+// Mock de dados da sessão para exibição (em produção, viria da API)
 const mockSession = {
-  sessionId: "mock-session-id-12345",
+  sessionId: "uuid-session-12345-67890",
   user: {
-    username: "Usuário Nakama",
-    avatarUrl: "https://cdn.discordapp.com/embed/avatars/0.png" // Placeholder avatar
+    username: "UsuárioTeste#1234",
+    avatarUrl: "https://cdn.discordapp.com/embed/avatars/0.png"
   },
   isActive: true,
-  expiresAt: new Date(Date.now() + 3600 * 1000).toISOString() // Expira em 1 hora
+  expiresAt: new Date(Date.now() + 3600 * 1000).toISOString(),
+  botConnected: false // Status de conexão do bot
 };
 
-// Em uma aplicação real, você buscaria esses dados de uma API endpoint
-// Ex: const sessionData = await fetch('/api/user/session').then(res => res.json());
+// Em uma aplicação real, você buscaria esses dados da API
+// const response = await fetch('/api/user/session', { headers: { cookie: Astro.request.headers.get('cookie') } });
+// const sessionData = await response.json();
 ---
 <Layout title="Nakama - Dashboard">
   <Navbar user={mockSession.user} client:load />
   <div class="flex">
     {/* <Sidebar client:load /> */}
     <main class="flex-grow container mx-auto px-4 py-8">
-      <h1 class="text-4xl font-bold mb-6 text-purple-400">Seu Dashboard Nakama</h1>
+      <div class="mb-8">
+        <h1 class="text-4xl font-bold mb-4 text-purple-400">🎧 Dashboard Nakama</h1>
+        <p class="text-gray-300">Gerencie sua transmissão de áudio para o Discord</p>
+      </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
-          <h2 class="text-2xl font-semibold mb-4 text-teal-400">Sua Sessão Atual</h2>
-          <SessionDisplay session={mockSession} client:visible />
-          <p class="mt-4 text-sm text-gray-400">
-            Use este ID de Sessão no comando `/music` do bot no Discord.
-          </p>
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Sessão Atual */}
+        <div class="lg:col-span-1">
+          <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
+            <h2 class="text-2xl font-semibold mb-4 text-teal-400">🆔 Sua Sessão</h2>
+            <SessionDisplay session={mockSession} client:visible />
+            <div class="mt-4 p-3 bg-blue-900/20 border border-blue-600 rounded">
+              <p class="text-blue-300 text-sm">
+                <strong>💡 Como usar:</strong><br/>
+                No Discord, digite: <code class="bg-gray-700 px-1 rounded">/music {mockSession.sessionId}</code>
+              </p>
+            </div>
+          </div>
         </div>
 
-        <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
-          <h2 class="text-2xl font-semibold mb-4 text-teal-400">Configuração de Áudio</h2>
-          <AudioDeviceSelector client:visible />
+        {/* Configuração de Áudio */}
+        <div class="lg:col-span-2">
+          <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
+            <h2 class="text-2xl font-semibold mb-4 text-teal-400">🎙️ Configuração de Áudio</h2>
+            <AudioDeviceSelector 
+              sessionId={mockSession.sessionId}
+              isConnectedToBot={mockSession.botConnected}
+              client:visible 
+            />
+          </div>
         </div>
 
-        <div class="bg-gray-800 p-6 rounded-lg shadow-lg md:col-span-2">
-          <h2 class="text-2xl font-semibold mb-4 text-teal-400">Status da Transmissão</h2>
-          <StreamingStatus client:visible />
-          <p class="mt-4 text-sm text-gray-400">
-            Acompanhe o status da sua transmissão de áudio para o bot.
-          </p>
+        {/* Status da Transmissão */}
+        <div class="lg:col-span-3">
+          <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
+            <h2 class="text-2xl font-semibold mb-4 text-teal-400">📊 Status da Transmissão</h2>
+            <StreamingStatus 
+              sessionId={mockSession.sessionId}
+              client:visible 
+            />
+          </div>
         </div>
       </div>
 
-      <div class="mt-10 text-center">
-        <h2 class="text-2xl font-semibold mb-4 text-purple-400">Como Usar:</h2>
-        <ol class="list-decimal list-inside text-left max-w-md mx-auto text-gray-300 space-y-2">
-          <li>Verifique se o App de Captura Nakama está em execução no seu PC e conectado com esta sessão.</li>
-          <li>No seu servidor Discord, entre em um canal de voz.</li>
-          <li>Digite o comando <code class="bg-gray-700 px-1 rounded">/music {mockSession.sessionId}</code>.</li>
-          <li>O bot Nakama deverá entrar no seu canal e começar a tocar o áudio do seu PC.</li>
-        </ol>
+      {/* Guia de Uso Passo a Passo */}
+      <div class="mt-10 bg-gray-800/50 p-6 rounded-lg">
+        <h2 class="text-2xl font-semibold mb-6 text-purple-400 text-center">📋 Guia Passo a Passo</h2>
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div class="text-center p-4 bg-gray-700 rounded-lg">
+            <div class="text-3xl mb-2">1️⃣</div>
+            <h3 class="font-semibold text-purple-300 mb-2">Login Feito</h3>
+            <p class="text-gray-300 text-sm">Você já está logado e sua sessão está ativa!</p>
+          </div>
+          <div class="text-center p-4 bg-gray-700 rounded-lg">
+            <div class="text-3xl mb-2">2️⃣</div>
+            <h3 class="font-semibold text-yellow-300 mb-2">Use /music no Discord</h3>
+            <p class="text-gray-300 text-sm">Entre em um canal de voz e digite o comando com sua Session ID</p>
+          </div>
+          <div class="text-center p-4 bg-gray-700 rounded-lg">
+            <div class="text-3xl mb-2">3️⃣</div>
+            <h3 class="font-semibold text-blue-300 mb-2">Configure Áudio</h3>
+            <p class="text-gray-300 text-sm">Selecione o dispositivo de áudio que quer transmitir</p>
+          </div>
+          <div class="text-center p-4 bg-gray-700 rounded-lg">
+            <div class="text-3xl mb-2">4️⃣</div>
+            <h3 class="font-semibold text-green-300 mb-2">Capture App</h3>
+            <p class="text-gray-300 text-sm">Abra o Nakama Capture App no seu PC para iniciar</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Informações da Sessão */}
+      <div class="mt-6 text-center">
+        <div class="inline-block bg-gray-700 px-4 py-2 rounded-lg">
+          <span class="text-gray-400 text-sm">
+            Sessão expira em: <span class="text-white font-mono">{new Date(mockSession.expiresAt).toLocaleTimeString('pt-BR')}</span>
+          </span>
+        </div>
       </div>
     </main>
   </div>
@@ -78,3 +125,32 @@ const mockSession = {
     min-height: calc(100vh - 4rem); /* Subtrai altura do Navbar, ajuste conforme necessário */
   }
 </style>
+
+<script>
+  // Script para atualizar status do bot em tempo real
+  document.addEventListener('DOMContentLoaded', () => {
+    // Verificar status do bot periodicamente
+    const checkBotStatus = async () => {
+      try {
+        const response = await fetch('/api/user/session', {
+          credentials: 'include'
+        });
+        if (response.ok) {
+          const data = await response.json();
+          // Atualizar UI com status do bot
+          // Esta lógica seria implementada nos componentes React
+        }
+      } catch (err) {
+        console.log('Erro ao verificar status:', err);
+      }
+    };
+
+    // Verificar a cada 5 segundos
+    const interval = setInterval(checkBotStatus, 5000);
+    
+    // Cleanup quando a página for fechada
+    window.addEventListener('beforeunload', () => {
+      clearInterval(interval);
+    });
+  });
+</script>
